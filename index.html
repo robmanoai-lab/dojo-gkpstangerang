@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dojo GKPS Tangerang - Sistem Laporan Keuangan Digital</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        /* Karate accent */
+        .karate-belt {
+            height: 4px;
+            background: linear-gradient(90deg, #1e293b 0%, #1e293b 20%, #dc2626 20%, #dc2626 40%, #ffffff 40%, #ffffff 60%, #dc2626 60%, #dc2626 80%, #1e293b 80%, #1e293b 100%);
+        }
+        .kanji-watermark {
+            font-size: 2.75rem;
+            font-weight: 700;
+            color: rgba(255,255,255,0.08);
+            line-height: 1;
+            user-select: none;
+        }
+        .select-period {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+            padding-right: 2.5rem;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+    </style>
+</head>
+<body class="pb-20 text-slate-800">
+
+    <nav class="bg-blue-900 text-white shadow-xl sticky top-0 z-50 relative overflow-hidden">
+        <span class="kanji-watermark absolute right-4 top-1/2 -translate-y-1/2 hidden md:block">空手</span>
+        <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-4 relative">
+            <div class="flex items-center space-x-3 self-start md:self-center">
+                <div class="bg-white/10 p-2 rounded-lg ring-1 ring-red-500/40"><i class="fas fa-hand-fist text-red-400"></i></div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight">Dojo GKPS Tangerang</h1>
+                    <p class="text-xs text-blue-200">Sistem Laporan Keuangan Digital</p>
+                </div>
+            </div>
+
+            <div class="flex space-x-2 bg-blue-800 p-1.5 rounded-lg shadow-inner">
+                <select id="sel-month" onchange="changePeriod()" class="select-period bg-blue-700 text-white text-sm font-semibold py-1.5 px-3 rounded cursor-pointer border border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <option value="0">Januari</option>
+                    <option value="1">Februari</option>
+                    <option value="2">Maret</option>
+                    <option value="3">April</option>
+                    <option value="4">Mei</option>
+                    <option value="5">Juni</option>
+                    <option value="6">Juli</option>
+                    <option value="7">Agustus</option>
+                    <option value="8">September</option>
+                    <option value="9">Oktober</option>
+                    <option value="10">November</option>
+                    <option value="11">Desember</option>
+                </select>
+                <select id="sel-year" onchange="changePeriod()" class="select-period bg-blue-700 text-white text-sm font-semibold py-1.5 px-3 rounded cursor-pointer border border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <option value="2024">2024</option>
+                    <option value="2025">2025</option>
+                    <option value="2026">2026</option>
+                </select>
+            </div>
+
+            <div class="flex space-x-2">
+                <button onclick="openPeriodicModal()" class="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-2 rounded-lg text-sm font-semibold shadow-lg transition-all flex items-center">
+                    <i class="fas fa-layer-group mr-2"></i> Laporan Berkala
+                </button>
+                <button onclick="exportToPDF()" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-semibold shadow-lg transition-all flex items-center">
+                    <i class="fas fa-file-pdf mr-2"></i> PDF Bulan Ini
+                </button>
+            </div>
+        </div>
+    </nav>
+    <div class="karate-belt"></div>
+
+    <main class="max-w-6xl mx-auto px-4 mt-6">
+        
+        <div id="backdate-alert" class="hidden bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4 rounded-r shadow-sm flex items-center justify-between animate-pulse">
+            <div class="flex items-center">
+                <i class="fas fa-history text-yellow-600 mr-3"></i>
+                <p class="text-sm text-yellow-700">Anda sedang melihat/mengedit laporan masa lalu: <span id="alert-period" class="font-bold"></span></p>
+            </div>
+            <button onclick="resetToToday()" class="text-xs bg-yellow-200 hover:bg-yellow-300 text-yellow-800 px-2 py-1 rounded font-bold">Kembali ke Hari Ini</button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-blue-600">
+                <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">Saldo Akhir</p>
+                <h2 id="disp-saldo-total" class="text-2xl font-bold text-slate-800 mt-1">Rp 0</h2>
+                <p class="text-[10px] text-gray-400 mt-1">Akumulasi seluruh bulan</p>
+            </div>
+            
+            <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-emerald-500">
+                <p id="label-masuk" class="text-gray-500 text-xs font-bold uppercase tracking-wider">Pemasukan</p>
+                <h2 id="disp-masuk" class="text-xl font-bold text-emerald-600 mt-1">Rp 0</h2>
+            </div>
+            
+            <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-red-500">
+                <p id="label-keluar" class="text-gray-500 text-xs font-bold uppercase tracking-wider">Pengeluaran</p>
+                <h2 id="disp-keluar" class="text-xl font-bold text-red-600 mt-1">Rp 0</h2>
+            </div>
+            
+            <div class="bg-blue-50 p-5 rounded-xl shadow-sm border border-blue-100">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-xs font-semibold text-blue-800">Kas Tunai Total</span>
+                    <span id="disp-cash" class="text-sm font-bold text-blue-900">Rp 0</span>
+                </div>
+                <div class="w-full bg-blue-200 h-1.5 rounded-full mb-3">
+                    <div class="bg-blue-600 h-1.5 rounded-full" style="width: 40%"></div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-semibold text-blue-800">Bank / Transfer Total</span>
+                    <span id="disp-bank" class="text-sm font-bold text-blue-900">Rp 0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-xl shadow-md p-6 sticky top-24">
+                    <h3 id="form-title" class="font-bold text-lg text-slate-700 mb-4 border-b pb-2 flex items-center justify-between">
+                        <span><i class="fas fa-edit text-blue-600 mr-2"></i> Input Transaksi</span>
+                    </h3>
+                    
+                    <div id="edit-indicator" class="hidden mb-4 bg-orange-50 border-l-4 border-orange-500 p-3 rounded">
+                        <p class="text-xs text-orange-700 font-bold">Mode Edit Aktif</p>
+                        <p class="text-[10px] text-orange-600">Sedang mengubah data yang sudah ada.</p>
+                    </div>
+
+                    <form id="entry-form" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Tanggal</label>
+                            <input type="date" id="tgl" required class="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-colors">
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 mb-1">Jenis</label>
+                                <select id="jenis" class="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg outline-none text-sm font-medium">
+                                    <option value="pemasukan" class="text-green-600">Pemasukan (+)</option>
+                                    <option value="pengeluaran" class="text-red-600">Pengeluaran (-)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 mb-1">Metode</label>
+                                <select id="metode" class="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg outline-none text-sm">
+                                    <option value="Tunai">Tunai (Cash)</option>
+                                    <option value="Bank">Bank (Transfer)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Uraian / Keterangan</label>
+                            <textarea id="ket" rows="3" placeholder="Contoh: Galangan Partonggoan..." required class="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg outline-none text-sm"></textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Jumlah (Rp)</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-2.5 text-gray-500 font-bold text-sm">Rp</span>
+                                <input type="number" id="jumlah" placeholder="0" required class="w-full p-2.5 pl-10 bg-gray-50 border border-gray-300 rounded-lg outline-none text-sm font-bold text-slate-700">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Bukti Transfer / Lampiran (Opsional)</label>
+                            <input type="file" id="lampiran" accept="image/*" class="w-full p-2 bg-gray-50 border border-gray-300 rounded-lg outline-none text-sm transition-colors file:mr-4 file:py-1.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
+                            <p id="edit-lampiran-info" class="text-[10px] text-orange-600 hidden mt-1"><i class="fas fa-info-circle"></i> Transaksi ini sudah memiliki lampiran. Biarkan kosong jika tidak ingin mengubah.</p>
+                        </div>
+
+                        <div class="pt-2 flex gap-2">
+                            <button type="button" id="btn-cancel" onclick="cancelEdit()" class="hidden w-1/3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-3 rounded-lg shadow-sm transition-colors">
+                                Batal
+                            </button>
+                            <button type="submit" id="btn-submit" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3 rounded-lg shadow-md transition-colors flex justify-center items-center">
+                                <i class="fas fa-save mr-2"></i> <span>Simpan Transaksi</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-xl shadow-md overflow-hidden min-h-[500px]">
+                    <div class="p-4 bg-gray-50 border-b flex flex-wrap justify-between items-center gap-2">
+                        <h3 id="table-title" class="font-bold text-slate-700">Buku Kas Umum</h3>
+                        
+                        <div class="flex space-x-2">
+                            <button onclick="exportJSON()" class="text-blue-600 hover:text-blue-800 text-xs font-bold bg-blue-50 px-3 py-1.5 rounded border border-blue-100 flex items-center transition-colors">
+                                <i class="fas fa-download mr-1"></i> Backup Data
+                            </button>
+                            
+                            <label class="cursor-pointer text-emerald-600 hover:text-emerald-800 text-xs font-bold bg-emerald-50 px-3 py-1.5 rounded border border-emerald-100 flex items-center transition-colors">
+                                <i class="fas fa-upload mr-1"></i> Restore Data
+                                <input type="file" accept=".json" class="hidden" onchange="importJSON(event)">
+                            </label>
+
+                            <button onclick="deleteLastTransaction()" class="text-orange-500 hover:text-orange-700 text-xs font-bold bg-orange-50 px-3 py-1.5 rounded border border-orange-100 flex items-center transition-colors">
+                                <i class="fas fa-undo mr-1"></i> Hapus Terakhir
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-blue-900 text-white text-xs uppercase tracking-wider">
+                                    <th class="p-3 border-r border-blue-800 w-24">Tanggal</th> 
+                                    <th class="p-3 border-r border-blue-800">Keterangan / Uraian</th>
+                                    <th class="p-3 border-r border-blue-800 text-right w-28">Pemasukan</th>
+                                    <th class="p-3 border-r border-blue-800 text-right w-28">Pengeluaran</th>
+                                    <th class="p-3 text-right w-32">Saldo</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-body" class="text-sm divide-y divide-gray-100">
+                                </tbody>
+                        </table>
+                    </div>
+                    
+                    <div id="empty-state" class="hidden p-10 text-center">
+                        <div class="inline-block p-4 rounded-full bg-gray-100 mb-3">
+                            <i class="fas fa-folder-open text-gray-400 text-2xl"></i>
+                        </div>
+                        <p class="text-gray-500 text-sm">Belum ada data untuk periode ini.</p>
+                        <p class="text-xs text-blue-500 mt-1 cursor-pointer" onclick="document.getElementById('ket').focus()">Mulai Input Data</p>
+                    </div>
+
+                    <div id="report-footer" class="p-6 bg-slate-50 border-t mt-4 hidden">
+                        <div class="flex justify-end">
+                            <div class="w-full md:w-1/2 space-y-2">
+                                <h4 class="font-bold text-sm text-slate-700 mb-2 border-b pb-1">Ringkasan Penutupan Kas:</h4>
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-600">Saldo Kas Tunai Keseluruhan</span>
+                                    <span id="footer-tunai" class="font-mono font-bold">Rp 0</span>
+                                </div>
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-600">Saldo Bank Keseluruhan</span>
+                                    <span id="footer-bank" class="font-mono font-bold">Rp 0</span>
+                                </div>
+                                <div class="flex justify-between text-sm pt-2 border-t border-gray-300">
+                                    <span class="font-bold text-slate-800">Total Saldo Akhir</span>
+                                    <span id="footer-total" class="font-mono font-bold text-blue-700">Rp 0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="image-modal" class="hidden fixed inset-0 z-[100] bg-slate-900/90 flex justify-center items-center p-4 backdrop-blur-sm transition-all duration-300">
+        <div class="relative w-full max-w-lg">
+            <button onclick="closeModal()" class="absolute -top-12 right-0 bg-red-500 hover:bg-red-600 text-white rounded-full w-10 h-10 flex items-center justify-center text-xl shadow-lg transition-colors">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="bg-white p-2 rounded-xl shadow-2xl">
+                <img id="modal-image" src="" class="w-full h-auto max-h-[80vh] object-contain rounded-lg">
+            </div>
+        </div>
+    </div>
+
+    <div id="periodic-modal" class="hidden fixed inset-0 z-[100] bg-slate-900/50 flex justify-center items-center p-4 backdrop-blur-sm transition-all duration-300">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div class="bg-blue-900 px-6 py-4 flex justify-between items-center text-white">
+                <h3 class="font-bold text-lg"><i class="fas fa-file-export mr-2"></i>Laporan Berkala</h3>
+                <button onclick="closePeriodicModal()" class="text-blue-200 hover:text-white transition-colors">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <p class="text-sm text-gray-600 mb-2">Pilih rentang waktu untuk mencetak Laporan Keuangan keseluruhan beserta Summary.</p>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">Dari Bulan</label>
+                        <select id="sel-start-month" class="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg outline-none text-sm">
+                            <option value="0">Januari</option> <option value="1">Februari</option>
+                            <option value="2">Maret</option> <option value="3">April</option>
+                            <option value="4">Mei</option> <option value="5">Juni</option>
+                            <option value="6">Juli</option> <option value="7">Agustus</option>
+                            <option value="8">September</option> <option value="9">Oktober</option>
+                            <option value="10">November</option> <option value="11">Desember</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">Sampai Bulan</label>
+                        <select id="sel-end-month" class="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg outline-none text-sm">
+                            <option value="0">Januari</option> <option value="1">Februari</option>
+                            <option value="2">Maret</option> <option value="3">April</option>
+                            <option value="4">Mei</option> <option value="5">Juni</option>
+                            <option value="6">Juli</option> <option value="7">Agustus</option>
+                            <option value="8">September</option> <option value="9">Oktober</option>
+                            <option value="10">November</option> <option value="11" selected>Desember</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">Tahun Laporan</label>
+                    <select id="sel-periodic-year" class="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg outline-none text-sm">
+                        <option value="2024">2024</option>
+                        <option value="2025" selected>2025</option>
+                        <option value="2026">2026</option>
+                    </select>
+                </div>
+                
+                <div class="pt-4 flex gap-3">
+                    <button onclick="exportPeriodic('pdf')" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 rounded-lg shadow-md transition-colors flex justify-center items-center">
+                        <i class="fas fa-file-pdf mr-2"></i> PDF
+                    </button>
+                    <button onclick="exportPeriodic('excel')" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-lg shadow-md transition-colors flex justify-center items-center">
+                        <i class="fas fa-file-excel mr-2"></i> Excel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. Global State Configuration ---
+        const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+        const shortMonths = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Ags", "Sep", "Okt", "Nov", "Des"];
+        
+        let activeMonthIndex = new Date().getMonth();
+        let activeYear = new Date().getFullYear();
+
+       // --- DATA STORAGE ---
+        let dataMaster = JSON.parse(localStorage.getItem('sektor12_master_data'));
+        let dataNov = JSON.parse(localStorage.getItem('sektor12_nov_data'));
+        let dataLama = JSON.parse(localStorage.getItem('sektor12_data'));
+
+        let transactions = [];
+
+        if (dataMaster && dataMaster.length > 0) {
+            transactions = dataMaster;
+        } else if (dataNov && dataNov.length > 0) {
+            transactions = dataNov;
+        } else if (dataLama && dataLama.length > 0) {
+            transactions = dataLama;
+        }
+
+        if(transactions.length > 0) {
+            localStorage.setItem('sektor12_master_data', JSON.stringify(transactions));
+        }
+        
+        // EDIT STATE
+        let editingId = null; 
+
+        // DOM Elements
+        const selMonth = document.getElementById('sel-month');
+        const selYear = document.getElementById('sel-year');
+        const tableBody = document.getElementById('table-body');
+        const footerDiv = document.getElementById('report-footer');
+        const emptyState = document.getElementById('empty-state');
+        const dateInput = document.getElementById('tgl');
+        
+        // Form Elements
+        const form = document.getElementById('entry-form');
+        const btnSubmit = document.getElementById('btn-submit');
+        const btnCancel = document.getElementById('btn-cancel');
+        const editIndicator = document.getElementById('edit-indicator');
+
+        // --- 2. Initialization ---
+        window.onload = function() {
+            selMonth.value = activeMonthIndex;
+            selYear.value = activeYear;
+            
+            // Init Modal Berkala
+            document.getElementById('sel-start-month').value = 0; // Jan
+            document.getElementById('sel-periodic-year').value = activeYear;
+
+            updateUI();
+        };
+
+        // --- 3. Core Logic: Change Period ---
+        function changePeriod() {
+            activeMonthIndex = parseInt(selMonth.value);
+            activeYear = parseInt(selYear.value);
+            
+            const realDate = new Date();
+            const isBackdate = (activeYear < realDate.getFullYear()) || (activeYear === realDate.getFullYear() && activeMonthIndex < realDate.getMonth());
+            
+            const alertBox = document.getElementById('backdate-alert');
+            const alertText = document.getElementById('alert-period');
+            
+            if(isBackdate) {
+                alertBox.classList.remove('hidden');
+                alertText.innerText = `${months[activeMonthIndex]} ${activeYear}`;
+            } else {
+                alertBox.classList.add('hidden');
+            }
+
+            cancelEdit(); 
+            updateUI();
+        }
+
+        function resetToToday() {
+            const now = new Date();
+            selMonth.value = now.getMonth();
+            selYear.value = now.getFullYear();
+            changePeriod();
+        }
+
+        function updateUI() {
+            const mName = months[activeMonthIndex];
+            const mShort = shortMonths[activeMonthIndex];
+
+            document.getElementById('label-masuk').innerText = `Pemasukan (${mShort})`;
+            document.getElementById('label-keluar').innerText = `Pengeluaran (${mShort})`;
+            document.getElementById('table-title').innerText = `Buku Kas Umum: ${mName} ${activeYear}`;
+            
+            if(!editingId) {
+                const paddedMonth = String(activeMonthIndex + 1).padStart(2, '0');
+                dateInput.value = `${activeYear}-${paddedMonth}-01`;
+            }
+
+            renderData();
+        }
+
+        // --- Fungsi Convert Gambar ke Base64 ---
+        function getBase64(file) {
+           return new Promise((resolve, reject) => {
+             const reader = new FileReader();
+             reader.readAsDataURL(file);
+             reader.onload = () => resolve(reader.result);
+             reader.onerror = error => reject(error);
+           });
+        }
+
+        // --- MENGHITUNG SALDO AWAL ---
+        function getSaldoAwal(targetMonth, targetYear) {
+            let s = 0, t = 0, b = 0;
+            const cutoffDate = new Date(targetYear, targetMonth, 1);
+            
+            transactions.forEach(tx => {
+                const txDate = new Date(tx.tgl);
+                if (txDate < cutoffDate) {
+                    const masuk = tx.jenis === 'pemasukan' ? tx.jumlah : 0;
+                    const keluar = tx.jenis === 'pengeluaran' ? tx.jumlah : 0;
+                    s += (masuk - keluar);
+                    if (tx.jenis === 'pemasukan') {
+                        if (tx.metode === 'Tunai') t += tx.jumlah; else b += tx.jumlah;
+                    } else {
+                        if (tx.metode === 'Tunai') t -= tx.jumlah; else b -= tx.jumlah;
+                    }
+                }
+            });
+            return { saldo: s, tunai: t, bank: b };
+        }
+
+        // --- 4. Form Submission (Handle Add & Edit) ---
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const inputDate = document.getElementById('tgl').value;
+            
+            const checkDate = new Date(inputDate);
+            if(!editingId && checkDate.getMonth() !== activeMonthIndex) {
+                 if(!confirm(`Tanggal (${inputDate}) tidak sesuai dengan Bulan yang dipilih. Tetap simpan?`)) return;
+            }
+
+            let base64Lampiran = null;
+            const fileInput = document.getElementById('lampiran');
+            
+            if (editingId && fileInput.files.length === 0) {
+                const existingTx = transactions.find(t => t.id === editingId);
+                base64Lampiran = existingTx.lampiran || null;
+            } else if (fileInput.files.length > 0) {
+                base64Lampiran = await getBase64(fileInput.files[0]);
+            }
+
+            const payload = {
+                tgl: inputDate,
+                jenis: document.getElementById('jenis').value, 
+                metode: document.getElementById('metode').value, 
+                ket: document.getElementById('ket').value,
+                jumlah: parseFloat(document.getElementById('jumlah').value),
+                lampiran: base64Lampiran 
+            };
+
+            if (editingId) {
+                const index = transactions.findIndex(t => t.id === editingId);
+                if (index !== -1) {
+                    transactions[index] = { ...transactions[index], ...payload }; 
+                }
+                alert("Transaksi berhasil diperbarui!");
+                cancelEdit();
+            } else {
+                payload.id = Date.now();
+                transactions.push(payload);
+                document.getElementById('ket').value = '';
+                document.getElementById('jumlah').value = '';
+                fileInput.value = ''; 
+            }
+
+            saveData();
+            renderData();
+        });
+
+        // --- 5. Edit Functions ---
+        function startEdit(id) {
+            const tx = transactions.find(t => t.id === id);
+            if (!tx) return;
+
+            document.getElementById('tgl').value = tx.tgl;
+            document.getElementById('jenis').value = tx.jenis;
+            document.getElementById('metode').value = tx.metode;
+            document.getElementById('ket').value = tx.ket;
+            document.getElementById('jumlah').value = tx.jumlah;
+            
+            document.getElementById('lampiran').value = '';
+            if(tx.lampiran) {
+                document.getElementById('edit-lampiran-info').classList.remove('hidden');
+            } else {
+                document.getElementById('edit-lampiran-info').classList.add('hidden');
+            }
+
+            editingId = id;
+            
+            btnSubmit.classList.remove('bg-blue-700', 'hover:bg-blue-800');
+            btnSubmit.classList.add('bg-orange-500', 'hover:bg-orange-600');
+            btnSubmit.innerHTML = '<i class="fas fa-sync-alt mr-2"></i> <span>Update Transaksi</span>';
+            
+            btnCancel.classList.remove('hidden');
+            document.getElementById('btn-submit').classList.remove('w-full');
+            document.getElementById('btn-submit').classList.add('w-2/3');
+            
+            editIndicator.classList.remove('hidden');
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function cancelEdit() {
+            editingId = null;
+            
+            btnSubmit.classList.add('bg-blue-700', 'hover:bg-blue-800');
+            btnSubmit.classList.remove('bg-orange-500', 'hover:bg-orange-600');
+            btnSubmit.innerHTML = '<i class="fas fa-save mr-2"></i> <span>Simpan Transaksi</span>';
+            
+            btnCancel.classList.add('hidden');
+            document.getElementById('btn-submit').classList.add('w-full');
+            document.getElementById('btn-submit').classList.remove('w-2/3');
+            
+            editIndicator.classList.add('hidden');
+            document.getElementById('edit-lampiran-info').classList.add('hidden');
+            document.getElementById('lampiran').value = '';
+            
+            const paddedMonth = String(activeMonthIndex + 1).padStart(2, '0');
+            dateInput.value = `${activeYear}-${paddedMonth}-01`;
+            document.getElementById('ket').value = '';
+            document.getElementById('jumlah').value = '';
+        }
+
+        // --- FITUR HAPUS PER TRANSAKSI ---
+        window.deleteTransaction = function(id) {
+            if (confirm("Apakah Anda yakin ingin menghapus transaksi ini?")) {
+                transactions = transactions.filter(t => t.id !== id);
+                saveData();
+                renderData();
+            }
+        }
+
+        // --- Fungsi Buka/Tutup Modal ---
+        window.showImage = function(base64Str) {
+            document.getElementById('modal-image').src = base64Str;
+            document.getElementById('image-modal').classList.remove('hidden');
+        }
+        window.closeModal = function() {
+            document.getElementById('image-modal').classList.add('hidden');
+            document.getElementById('modal-image').src = '';
+        }
+
+        window.openPeriodicModal = function() {
+            document.getElementById('periodic-modal').classList.remove('hidden');
+        }
+        window.closePeriodicModal = function() {
+            document.getElementById('periodic-modal').classList.add('hidden');
+        }
+
+        // --- 6. Data Handling ---
+        function saveData() {
+            transactions.sort((a, b) => new Date(a.tgl) - new Date(b.tgl));
+            try {
+                localStorage.setItem('sektor12_master_data', JSON.stringify(transactions));
+            } catch (e) {
+                alert("Penyimpanan penuh! Mohon hapus data lama atau gunakan gambar ukuran kecil.");
+            }
+        }
+
+        function deleteLastTransaction() {
+            const currentViewData = getFilteredData();
+            if(currentViewData.length > 0) {
+                const lastId = currentViewData[currentViewData.length - 1].id;
+                if(confirm("Hapus transaksi terakhir di tabel ini?")) {
+                    transactions = transactions.filter(t => t.id !== lastId);
+                    saveData();
+                    renderData();
+                }
+            } else {
+                alert("Tidak ada data di bulan ini untuk dihapus.");
+            }
+        }
+
+        function getFilteredData() {
+            return transactions.filter(t => {
+                const d = new Date(t.tgl);
+                return d.getMonth() === activeMonthIndex && d.getFullYear() === activeYear;
+            });
+        }
+
+        // --- JSON BACKUP & RESTORE ---
+        function exportJSON() {
+            if(transactions.length === 0) return alert("Tidak ada data untuk dibackup.");
+            const dataStr = JSON.stringify(transactions, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+            a.download = `Backup_Data_Sektor12_${dateStr}.json`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function importJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if (Array.isArray(importedData)) {
+                        transactions = importedData;
+                        saveData(); renderData(); changePeriod(); 
+                        alert("Data berhasil dipulihkan (Restore) dari file backup!");
+                    } else alert("Format file tidak valid.");
+                } catch (error) {
+                    alert("Gagal membaca file data. File rusak atau format salah.");
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function renderData() {
+            tableBody.innerHTML = '';
+            const filteredData = getFilteredData();
+            
+            // Ambil Saldo Awal berdasarkan bulan dan tahun aktif
+            const aw = getSaldoAwal(activeMonthIndex, activeYear);
+            
+            let saldo = aw.saldo;
+            let saldoTunai = aw.tunai; 
+            let saldoBank = aw.bank;
+
+            let totalMasukBulanIni = 0; 
+            let totalKeluarBulanIni = 0;
+
+            if (filteredData.length > 0 || saldo !== 0) {
+                footerDiv.classList.remove('hidden'); emptyState.classList.add('hidden');
+            } else {
+                footerDiv.classList.add('hidden'); emptyState.classList.remove('hidden');
+            }
+
+            // Tampilkan Baris Saldo Awal jika ada data atau ada saldo
+            if (filteredData.length > 0 || saldo !== 0) {
+                 const trAwal = document.createElement('tr');
+                 trAwal.className = "bg-amber-50/60";
+                 const prevMonthText = activeMonthIndex === 0 ? `31 Des ${activeYear-1}` : `akhir ${months[activeMonthIndex-1]} ${activeYear}`;
+                 
+                 const firstDayStr = `${activeYear}-${String(activeMonthIndex + 1).padStart(2, '0')}-01`;
+                 
+                 trAwal.innerHTML = `
+                    <td class="p-3 text-xs font-medium text-gray-600 border-r border-gray-100 whitespace-nowrap">
+                        ${formatDate(firstDayStr)}
+                    </td>
+                    <td class="p-3 text-xs text-gray-700 font-bold border-r border-gray-100">
+                        Saldo Awal (Per ${prevMonthText})
+                    </td>
+                    <td class="p-3 border-r border-gray-100"></td>
+                    <td class="p-3 border-r border-gray-100"></td>
+                    <td class="p-3 text-right text-xs font-bold text-blue-800 tracking-wide bg-blue-50/50">
+                        ${formatRupiah(saldo)}
+                    </td>
+                 `;
+                 tableBody.appendChild(trAwal);
+            }
+
+            filteredData.forEach((tx, index) => {
+                const masuk = tx.jenis === 'pemasukan' ? tx.jumlah : 0;
+                const keluar = tx.jenis === 'pengeluaran' ? tx.jumlah : 0;
+                
+                saldo += (masuk - keluar);
+                totalMasukBulanIni += masuk; 
+                totalKeluarBulanIni += keluar;
+
+                if (tx.jenis === 'pemasukan') {
+                    if(tx.metode === 'Tunai') saldoTunai += tx.jumlah; else saldoBank += tx.jumlah;
+                } else {
+                    if(tx.metode === 'Tunai') saldoTunai -= tx.jumlah; else saldoBank -= tx.jumlah;
+                }
+
+                const tr = document.createElement('tr');
+                tr.className = index % 2 === 0 ? "bg-white hover:bg-blue-50 transition-colors group" : "bg-gray-50 hover:bg-blue-50 transition-colors group";
+                tr.innerHTML = `
+                    <td class="p-3 text-xs font-medium text-gray-600 border-r border-gray-100 whitespace-nowrap flex items-center gap-2">
+                        <button onclick="startEdit(${tx.id})" class="text-blue-400 hover:text-blue-600 transition-colors p-1" title="Edit Transaksi">
+                            <i class="fas fa-pencil-alt"></i>
+                        </button>
+                        <button onclick="deleteTransaction(${tx.id})" class="text-red-400 hover:text-red-600 transition-colors p-1" title="Hapus Transaksi">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                        ${formatDate(tx.tgl)}
+                    </td>
+                    <td class="p-3 text-xs text-gray-700 border-r border-gray-100">
+                        <div class="font-semibold">${tx.ket}</div>
+                        <div class="flex items-center gap-2 mt-1.5">
+                            <span class="text-[10px] px-1.5 py-0.5 rounded ${tx.metode === 'Bank' ? 'bg-purple-100 text-purple-700' : 'bg-gray-200 text-gray-600'}">${tx.metode}</span>
+                            ${tx.lampiran ? `<button onclick="showImage('${tx.lampiran}')" class="text-[10px] bg-blue-100 text-blue-700 hover:bg-blue-200 px-1.5 py-0.5 rounded transition-colors border border-blue-200 flex items-center gap-1"><i class="fas fa-image"></i> Lihat Bukti</button>` : ''}
+                        </div>
+                    </td>
+                    <td class="p-3 text-right text-xs font-bold text-emerald-600 border-r border-gray-100 tracking-wide">
+                        ${masuk > 0 ? formatRupiah(masuk) : ''}
+                    </td>
+                    <td class="p-3 text-right text-xs font-bold text-red-600 border-r border-gray-100 tracking-wide">
+                        ${keluar > 0 ? formatRupiah(keluar) : ''}
+                    </td>
+                    <td class="p-3 text-right text-xs font-bold text-blue-800 tracking-wide bg-blue-50/50">
+                        ${formatRupiah(saldo)}
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+
+            // Update UI Total
+            document.getElementById('disp-saldo-total').innerText = formatRupiah(saldo);
+            document.getElementById('disp-masuk').innerText = formatRupiah(totalMasukBulanIni);
+            document.getElementById('disp-keluar').innerText = formatRupiah(totalKeluarBulanIni);
+            document.getElementById('disp-cash').innerText = formatRupiah(saldoTunai);
+            document.getElementById('disp-bank').innerText = formatRupiah(saldoBank);
+            
+            document.getElementById('footer-tunai').innerText = formatRupiah(saldoTunai);
+            document.getElementById('footer-bank').innerText = formatRupiah(saldoBank);
+            document.getElementById('footer-total').innerText = formatRupiah(saldo);
+
+            window.finalCalculation = { saldoTunai, saldoBank, saldo };
+            window.exportData = filteredData;
+        }
+
+        function formatRupiah(num) {
+            return new Intl.NumberFormat('id-ID').format(num);
+        }
+
+        // FORMAT TANGGAL BARU: dd MMM yy (contoh 02 Jan 26)
+        function formatDate(dateStr) {
+            let d, mIndex, y;
+            if (typeof dateStr === 'string' && dateStr.includes('-')) {
+                const parts = dateStr.split('-');
+                if (parts.length === 3 && parts[0].length === 4) {
+                    d = parts[2];
+                    mIndex = parseInt(parts[1], 10) - 1;
+                    y = parts[0].slice(-2);
+                    return `${d} ${shortMonths[mIndex]} ${y}`;
+                }
+            }
+            const date = new Date(dateStr);
+            d = String(date.getDate()).padStart(2, '0');
+            mIndex = date.getMonth();
+            y = String(date.getFullYear()).slice(-2);
+            return `${d} ${shortMonths[mIndex]} ${y}`;
+        }
+
+        // ==========================================
+        // --- FITUR BARU: LAPORAN BERKALA & EXCEL ---
+        // ==========================================
+        async function exportPeriodic(type) {
+            const startM = parseInt(document.getElementById('sel-start-month').value);
+            const endM = parseInt(document.getElementById('sel-end-month').value);
+            const year = parseInt(document.getElementById('sel-periodic-year').value);
+
+            if (startM > endM) {
+                alert("Bulan awal tidak boleh lebih besar dari bulan akhir.");
+                return;
+            }
+
+            // Hitung tanggal cutoff untuk Saldo Awal
+            const startDateObj = new Date(year, startM, 1);
+            const endDateObj = new Date(year, endM + 1, 0); 
+
+            let saldoAwal = 0;
+            let sumMasukTunai = 0, sumMasukBank = 0;
+            let sumKeluarTunai = 0, sumKeluarBank = 0;
+
+            const periodicData = [];
+
+            transactions.forEach(t => {
+                const tDate = new Date(t.tgl);
+                const m = t.jenis === 'pemasukan' ? t.jumlah : 0;
+                const k = t.jenis === 'pengeluaran' ? t.jumlah : 0;
+
+                if (tDate < startDateObj) {
+                    // Semua transaksi SEBELUM bulan yang dipilih menjadi Saldo Awal
+                    saldoAwal += (m - k);
+                } else if (tDate >= startDateObj && tDate <= endDateObj) {
+                    // Transaksi di dalam rentang waktu terpilih
+                    periodicData.push(t);
+                    if (t.jenis === 'pemasukan') {
+                        if(t.metode === 'Tunai') sumMasukTunai += t.jumlah; else sumMasukBank += t.jumlah;
+                    } else {
+                        if(t.metode === 'Tunai') sumKeluarTunai += t.jumlah; else sumKeluarBank += t.jumlah;
+                    }
+                }
+            });
+
+            periodicData.sort((a, b) => new Date(a.tgl) - new Date(b.tgl));
+
+            if (type === 'pdf') {
+                await _generatePeriodicPDF(startM, endM, year, periodicData, saldoAwal, sumMasukTunai, sumMasukBank, sumKeluarTunai, sumKeluarBank);
+            } else if (type === 'excel') {
+                _generatePeriodicExcel(startM, endM, year, periodicData, saldoAwal, sumMasukTunai, sumMasukBank, sumKeluarTunai, sumKeluarBank);
+            }
+            closePeriodicModal();
+        }
+
+        // --- EXCEL GENERATOR ---
+        function _generatePeriodicExcel(startM, endM, year, dataToExport, saldoAwal, sumMT, sumMB, sumKT, sumKB) {
+            const titleRow = [`Laporan Keuangan Sektor 12 Periode ${months[startM]}-${months[endM]} ${year}`];
+            const headerRow = ['Tanggal', 'Keterangan / Uraian', 'Metode', 'Pemasukan', 'Pengeluaran', 'Saldo'];
+            
+            const ws_data = [
+                titleRow, [''], headerRow
+            ];
+
+            let runningSaldo = saldoAwal;
+            const firstDayPeriodicStr = `${year}-${String(startM + 1).padStart(2, '0')}-01`;
+            
+            // Masukkan baris Saldo Awal dengan format baru
+            ws_data.push([
+                formatDate(firstDayPeriodicStr),
+                `Saldo Awal (Per ${startM === 0 ? '31 Des ' + (year-1) : 'akhir ' + months[startM-1] + ' ' + year})`,
+                '-',
+                saldoAwal > 0 ? saldoAwal : '',
+                saldoAwal < 0 ? Math.abs(saldoAwal) : '',
+                runningSaldo
+            ]);
+
+            // Looping data
+            dataToExport.forEach(t => {
+                const m = t.jenis === 'pemasukan' ? t.jumlah : 0;
+                const k = t.jenis === 'pengeluaran' ? t.jumlah : 0;
+                runningSaldo += (m - k);
+
+                ws_data.push([
+                    formatDate(t.tgl),
+                    t.ket,
+                    t.metode,
+                    m > 0 ? m : '',
+                    k > 0 ? k : '',
+                    runningSaldo
+                ]);
+            });
+
+            // Summary Section
+            ws_data.push(['', '', '', '', '', '']);
+            ws_data.push(['SUMMARY PENERIMAAN', '', '', '', 'TOTAL', '']);
+            ws_data.push(['1. Pemasukan (Kas Tunai)', '', '', '', sumMT, '']);
+            ws_data.push(['2. Pemasukan (Bank/Transfer)', '', '', '', sumMB, '']);
+            ws_data.push(['Total Penerimaan', '', '', '', sumMT + sumMB, '']);
+            
+            ws_data.push(['', '', '', '', '', '']);
+            ws_data.push(['SUMMARY PENGELUARAN', '', '', '', 'TOTAL', '']);
+            ws_data.push(['1. Pengeluaran (Kas Tunai)', '', '', '', sumKT, '']);
+            ws_data.push(['2. Pengeluaran (Bank/Transfer)', '', '', '', sumKB, '']);
+            ws_data.push(['Total Pengeluaran', '', '', '', sumKT + sumKB, '']);
+            
+            ws_data.push(['', '', '', '', '', '']);
+            ws_data.push(['RINGKASAN KESELURUHAN', '', '', '', '', '']);
+            ws_data.push(['Saldo Awal', '', '', '', saldoAwal, '']);
+            ws_data.push(['Total Penerimaan', '', '', '', sumMT + sumMB, '']);
+            ws_data.push(['Total Pengeluaran', '', '', '', sumKT + sumKB, '']);
+            ws_data.push(['SALDO AKHIR', '', '', '', runningSaldo, '']);
+
+            const ws = XLSX.utils.aoa_to_sheet(ws_data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Laporan Keuangan");
+            XLSX.writeFile(wb, `Laporan_Sektor12_${shortMonths[startM]}-${shortMonths[endM]}_${year}.xlsx`);
+        }
+
+        // --- PDF BERKALA GENERATOR ---
+        async function _generatePeriodicPDF(startM, endM, year, dataToExport, saldoAwal, sumMT, sumMB, sumKT, sumKB) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const periodText = startM === endM ? `${months[startM]} ${year}` : `${months[startM]}-${months[endM]} ${year}`;
+            
+            doc.setFontSize(14); doc.setFont("helvetica", "bold");
+            doc.text("LAPORAN KEUANGAN SEKTOR 12", 105, 15, { align: "center" });
+            doc.setFontSize(10); doc.setFont("helvetica", "normal");
+            doc.text(`Periode: ${periodText}`, 105, 22, { align: "center" });
+            
+            doc.setLineWidth(0.5); doc.line(14, 25, 196, 25); 
+
+            const rows = [];
+            let runningSaldo = saldoAwal;
+            const firstDayPeriodicStr = `${year}-${String(startM + 1).padStart(2, '0')}-01`;
+            
+            // Baris Saldo Awal format baru
+            const txtSaldoAwal = `Saldo Awal (Per ${startM === 0 ? '31 Des ' + (year-1) : 'akhir ' + months[startM-1] + ' ' + year})`;
+            rows.push([
+                formatDate(firstDayPeriodicStr),
+                txtSaldoAwal,
+                saldoAwal > 0 ? saldoAwal.toLocaleString('id-ID') : '',
+                saldoAwal < 0 ? Math.abs(saldoAwal).toLocaleString('id-ID') : '',
+                runningSaldo.toLocaleString('id-ID')
+            ]);
+
+            dataToExport.forEach(t => {
+                let m = t.jenis === 'pemasukan' ? t.jumlah : 0;
+                let k = t.jenis === 'pengeluaran' ? t.jumlah : 0;
+                runningSaldo += (m - k);
+
+                rows.push([
+                    formatDate(t.tgl),
+                    t.ket,
+                    m > 0 ? m.toLocaleString('id-ID') : '',
+                    k > 0 ? k.toLocaleString('id-ID') : '',
+                    runningSaldo.toLocaleString('id-ID')
+                ]);
+            });
+
+            doc.autoTable({
+                startY: 30,
+                head: [['Tanggal', 'Keterangan / Uraian', 'Pemasukan', 'Pengeluaran', 'Saldo']],
+                body: rows,
+                theme: 'grid',
+                styles: { fontSize: 8.5, cellPadding: 2, textColor: [50, 50, 50] },
+                headStyles: { fillColor: [30, 64, 175], textColor: 255, halign: 'center', fontStyle: 'bold' },
+                columnStyles: {
+                    0: { cellWidth: 22 }, 1: { cellWidth: 'auto' },
+                    2: { halign: 'right', cellWidth: 28 }, 3: { halign: 'right', cellWidth: 28 },
+                    4: { halign: 'right', fontStyle: 'bold', cellWidth: 30 }
+                },
+            });
+
+            let finalY = doc.lastAutoTable.finalY + 10;
+            
+            if (finalY > 180) { doc.addPage(); finalY = 20; }
+
+            // --- TABEL SUMMARY ---
+            const totalMasukAll = sumMT + sumMB;
+            const totalKeluarAll = sumKT + sumKB;
+
+            doc.autoTable({
+                startY: finalY,
+                head: [['Summary Penerimaan', 'Total']],
+                body: [
+                    ['1. Total Pemasukan (Kas Tunai)', sumMT.toLocaleString('id-ID')],
+                    ['2. Total Pemasukan (Bank/Transfer)', sumMB.toLocaleString('id-ID')],
+                    ['Total Pendapatan', totalMasukAll.toLocaleString('id-ID')]
+                ],
+                theme: 'grid', styles: { fontSize: 9 },
+                headStyles: { fillColor: [16, 185, 129] }, // Emerald color
+                columnStyles: { 0: { cellWidth: 120 }, 1: { halign: 'right', fontStyle: 'bold' } }
+            });
+
+            finalY = doc.lastAutoTable.finalY + 5;
+
+            doc.autoTable({
+                startY: finalY,
+                head: [['Summary Pengeluaran', 'Total']],
+                body: [
+                    ['1. Total Pengeluaran (Kas Tunai)', sumKT.toLocaleString('id-ID')],
+                    ['2. Total Pengeluaran (Bank/Transfer)', sumKB.toLocaleString('id-ID')],
+                    ['Total Pengeluaran', totalKeluarAll.toLocaleString('id-ID')]
+                ],
+                theme: 'grid', styles: { fontSize: 9 },
+                headStyles: { fillColor: [239, 68, 68] }, // Red color
+                columnStyles: { 0: { cellWidth: 120 }, 1: { halign: 'right', fontStyle: 'bold' } }
+            });
+
+            finalY = doc.lastAutoTable.finalY + 5;
+
+            // Box Saldo Akhir yang Disesuaikan (Menampilkan Saldo Awal)
+            doc.setFillColor(240, 249, 255);
+            doc.rect(14, finalY, 196, 20, 'F');
+            doc.setFontSize(10); doc.setFont("helvetica", "bold");
+            
+            doc.text(`Saldo Awal`, 18, finalY + 6);
+            doc.text(`: Rp ${saldoAwal.toLocaleString('id-ID')}`, 70, finalY + 6);
+            
+            doc.text(`Total Penerimaan - Pengeluaran`, 18, finalY + 11);
+            const mutasi = totalMasukAll - totalKeluarAll;
+            const mutasiText = mutasi >= 0 ? `+ Rp ${mutasi.toLocaleString('id-ID')}` : `- Rp ${Math.abs(mutasi).toLocaleString('id-ID')}`;
+            doc.text(`: ${mutasiText}`, 70, finalY + 11);
+
+            doc.text("SALDO AKHIR", 18, finalY + 16);
+            doc.text(`: Rp ${runningSaldo.toLocaleString('id-ID')}`, 70, finalY + 16);
+
+            finalY += 30;
+            if (finalY > 250) { doc.addPage(); finalY = 30; }
+
+            // Tanda Tangan
+            const signDate = `Tangerang, ${new Date().getDate()}-${new Date().getMonth()+1}-${activeYear}`;
+            doc.setFontSize(10); doc.setFont("helvetica", "normal");
+            doc.text(signDate, 160, finalY - 5, { align: "center" });
+            doc.text("Mengetahui,", 50, finalY, { align: "center" });
+            doc.text("Ketua Sektor 12", 50, finalY + 5, { align: "center" });
+            doc.text("Bendahara Sektor 12", 160, finalY + 5, { align: "center" });
+            doc.setFont("helvetica", "bold");
+            doc.text("( St. Robin Damanik )", 50, finalY + 30, { align: "center" });
+            doc.text("( St. Robert Manihuruk )", 160, finalY + 30, { align: "center" });
+
+            // Halaman Lampiran
+            const lampiranData = dataToExport.filter(t => t.lampiran);
+            if (lampiranData.length > 0) {
+                for (let i = 0; i < lampiranData.length; i++) {
+                    const t = lampiranData[i];
+                    doc.addPage();
+                    doc.setFontSize(14); doc.setFont("helvetica", "bold");
+                    doc.text("LAMPIRAN BUKTI TRANSAKSI", 105, 15, { align: "center" });
+                    doc.setFontSize(10); doc.setFont("helvetica", "normal");
+                    doc.text(`Tanggal: ${formatDate(t.tgl)}`, 14, 25);
+                    doc.text(`Keterangan: ${t.ket}`, 14, 30);
+                    doc.text(`Nominal: Rp ${t.jumlah.toLocaleString('id-ID')}`, 14, 35);
+                    doc.setLineWidth(0.5); doc.line(14, 38, 196, 38);
+                    
+                    try {
+                        const img = new Image(); img.src = t.lampiran;
+                        await new Promise(r => { img.onload = r; img.onerror = r; });
+                        const maxW = 180, maxH = 240;
+                        let imgW = img.width, imgH = img.height;
+                        if (imgW > 0 && imgH > 0) {
+                            if (imgW > maxW || imgH > maxH) {
+                                const ratio = Math.min(maxW / imgW, maxH / imgH);
+                                imgW *= ratio; imgH *= ratio;
+                            }
+                            const x = (210 - imgW) / 2, y = 45;
+                            let format = t.lampiran.includes('image/png') ? 'PNG' : 'JPEG';
+                            doc.addImage(t.lampiran, format, x, y, imgW, imgH);
+                        }
+                    } catch (e) {}
+                }
+            }
+            doc.save(`Laporan_Keuangan_Sektor12_${shortMonths[startM]}-${shortMonths[endM]}_${year}.pdf`);
+        }
+
+        // --- 8. PDF BULAN TUNGGAL (FITUR ASLI) ---
+        async function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const currentMonthName = months[activeMonthIndex];
+            
+            doc.setFontSize(14); doc.setFont("helvetica", "bold");
+            doc.text("LAPORAN KEUANGAN SEKTOR 12", 105, 15, { align: "center" });
+            doc.setFontSize(10); doc.setFont("helvetica", "normal");
+            doc.text(`Bulan: ${currentMonthName} ${activeYear}`, 105, 22, { align: "center" });
+            doc.setLineWidth(0.5); doc.line(14, 25, 196, 25); 
+
+            const rows = [];
+            const aw = getSaldoAwal(activeMonthIndex, activeYear);
+            let saldoRunning = aw.saldo;
+            
+            const dataToExport = window.exportData || [];
+            
+            if(dataToExport.length === 0 && saldoRunning === 0) return alert("Tidak ada data di bulan ini untuk diexport!");
+            
+            if (dataToExport.length > 0 || saldoRunning !== 0) {
+                const prevMonthText = activeMonthIndex === 0 ? `31 Des ${activeYear-1}` : `akhir ${months[activeMonthIndex-1]} ${activeYear}`;
+                const firstDayStr = `${activeYear}-${String(activeMonthIndex + 1).padStart(2, '0')}-01`;
+                
+                rows.push([ 
+                    formatDate(firstDayStr), 
+                    `Saldo Awal (Per ${prevMonthText})`, 
+                    '', 
+                    '', 
+                    saldoRunning.toLocaleString('id-ID') 
+                ]);
+            }
+
+            dataToExport.forEach(t => {
+                let m = t.jenis === 'pemasukan' ? t.jumlah : 0;
+                let k = t.jenis === 'pengeluaran' ? t.jumlah : 0;
+                saldoRunning += (m - k);
+                rows.push([ formatDate(t.tgl), t.ket, m > 0 ? m.toLocaleString('id-ID') : '', k > 0 ? k.toLocaleString('id-ID') : '', saldoRunning.toLocaleString('id-ID') ]);
+            });
+
+            doc.autoTable({
+                startY: 30,
+                head: [['Tanggal', 'Keterangan / Uraian', 'Pemasukan', 'Pengeluaran', 'Saldo']],
+                body: rows, theme: 'grid', styles: { fontSize: 9, cellPadding: 2, textColor: [50, 50, 50] },
+                headStyles: { fillColor: [30, 64, 175], textColor: 255, halign: 'center', fontStyle: 'bold' },
+                columnStyles: { 0: { cellWidth: 25 }, 1: { cellWidth: 'auto' }, 2: { halign: 'right', cellWidth: 30 }, 3: { halign: 'right', cellWidth: 30 }, 4: { halign: 'right', fontStyle: 'bold', cellWidth: 30 } },
+            });
+
+            let finalY = doc.lastAutoTable.finalY + 10;
+            if (finalY > 230) { doc.addPage(); finalY = 20; }
+            const calc = window.finalCalculation;
+            doc.setFontSize(10); doc.setFont("helvetica", "normal");
+            doc.text("Pada hari ini, Buku Kas Umum ditutup dengan keadaan sebagai berikut:", 14, finalY);
+            finalY += 8; doc.text("Saldo Kas Tunai", 20, finalY); doc.text(": Rp " + calc.saldoTunai.toLocaleString('id-ID'), 70, finalY, { align: "right" });
+            finalY += 6; doc.text("Saldo Bank", 20, finalY); doc.text(": Rp " + calc.saldoBank.toLocaleString('id-ID'), 70, finalY, { align: "right" });
+            finalY += 2; doc.line(20, finalY, 70, finalY);
+            finalY += 5; doc.setFont("helvetica", "bold"); doc.text("Jumlah Saldo", 20, finalY); doc.text(": Rp " + calc.saldo.toLocaleString('id-ID'), 70, finalY, { align: "right" });
+            finalY += 15;
+            
+            const lastDay = new Date(activeYear, activeMonthIndex + 1, 0).getDate();
+            const signDate = `Tangerang, ${lastDay}-${activeMonthIndex + 1}-${activeYear}`;
+            doc.setFont("helvetica", "normal");
+            doc.text(signDate, 160, finalY - 5, { align: "center" });
+            doc.text("Mengetahui,", 50, finalY, { align: "center" }); doc.text("Ketua Sektor 12", 50, finalY + 5, { align: "center" }); doc.text("Bendahara Sektor 12", 160, finalY + 5, { align: "center" });
+            doc.setFont("helvetica", "bold");
+            doc.text("( St. Robin Damanik )", 50, finalY + 30, { align: "center" }); doc.text("( St. Robert Manihuruk )", 160, finalY + 30, { align: "center" });
+
+            const lampiranData = dataToExport.filter(t => t.lampiran);
+            if (lampiranData.length > 0) {
+                for (let i = 0; i < lampiranData.length; i++) {
+                    const t = lampiranData[i];
+                    doc.addPage();
+                    doc.setFontSize(14); doc.setFont("helvetica", "bold"); doc.text("LAMPIRAN BUKTI TRANSAKSI", 105, 15, { align: "center" });
+                    doc.setFontSize(10); doc.setFont("helvetica", "normal");
+                    doc.text(`Tanggal: ${formatDate(t.tgl)}`, 14, 25); doc.text(`Keterangan: ${t.ket}`, 14, 30); doc.text(`Nominal: Rp ${t.jumlah.toLocaleString('id-ID')}`, 14, 35);
+                    doc.setLineWidth(0.5); doc.line(14, 38, 196, 38);
+                    try {
+                        const img = new Image(); img.src = t.lampiran;
+                        await new Promise(r => { img.onload = r; img.onerror = r; });
+                        const maxW = 180, maxH = 240; let imgW = img.width, imgH = img.height;
+                        if (imgW > 0 && imgH > 0) {
+                            if (imgW > maxW || imgH > maxH) { const ratio = Math.min(maxW / imgW, maxH / imgH); imgW *= ratio; imgH *= ratio; }
+                            const x = (210 - imgW) / 2, y = 45;
+                            let format = t.lampiran.includes('image/png') ? 'PNG' : 'JPEG';
+                            doc.addImage(t.lampiran, format, x, y, imgW, imgH);
+                        }
+                    } catch (e) {}
+                }
+            }
+            doc.save(`Laporan_Keuangan_Sektor12_${currentMonthName}_${activeYear}.pdf`);
+        }
+    </script>
+</body>
+
+</html>
