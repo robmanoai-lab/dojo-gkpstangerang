@@ -797,8 +797,8 @@
             }
 
             // Hitung tanggal cutoff untuk Saldo Awal
-            const startDateObj = new Date(year, startM, 1);
-            const endDateObj = new Date(year, endM + 1, 0); 
+            const startDateObj = new Date(year, startM, 1, 0, 0, 0, 0);
+            const endDateObj = new Date(year, endM + 1, 0, 23, 59, 59, 999); 
 
             let saldoAwal = 0;
             let sumMasukTunai = 0, sumMasukBank = 0;
@@ -807,7 +807,8 @@
             const periodicData = [];
 
             transactions.forEach(t => {
-                const tDate = new Date(t.tgl);
+                const [ty, tm, td] = t.tgl.split('-').map(Number);
+                const tDate = new Date(ty, tm - 1, td, 12, 0, 0, 0);
                 const m = t.jenis === 'pemasukan' ? t.jumlah : 0;
                 const k = t.jenis === 'pengeluaran' ? t.jumlah : 0;
 
@@ -1020,8 +1021,8 @@
             doc.text("Ketua Dojo GKPS", 50, finalY + 5, { align: "center" });
             doc.text("Bendahara Dojo GKPS", 160, finalY + 5, { align: "center" });
             doc.setFont("helvetica", "bold");
-            doc.text("( St. Kornelis Dehotman Damanik )", 50, finalY + 30, { align: "center" });
-            doc.text("( Ing. Sanny Girsang )", 160, finalY + 30, { align: "center" });
+            doc.text("( St. Robin Damanik )", 50, finalY + 30, { align: "center" });
+            doc.text("( St. Robert Manihuruk )", 160, finalY + 30, { align: "center" });
 
             // Halaman Lampiran
             const lampiranData = dataToExport.filter(t => t.lampiran);
@@ -1122,7 +1123,7 @@
             doc.text(signDate, 160, finalY - 5, { align: "center" });
             doc.text("Mengetahui,", 50, finalY, { align: "center" }); doc.text("Ketua Dojo GKPS", 50, finalY + 5, { align: "center" }); doc.text("Bendahara Dojo GKPS", 160, finalY + 5, { align: "center" });
             doc.setFont("helvetica", "bold");
-            doc.text("( St. Kornelis Dehotman Damanik )", 50, finalY + 30, { align: "center" }); doc.text("( Ing. Sanny Girsang )", 160, finalY + 30, { align: "center" });
+            doc.text("( St. Robin Damanik )", 50, finalY + 30, { align: "center" }); doc.text("( St. Robert Manihuruk )", 160, finalY + 30, { align: "center" });
 
             const lampiranData = dataToExport.filter(t => t.lampiran);
             if (lampiranData.length > 0) {
